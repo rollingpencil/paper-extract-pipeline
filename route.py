@@ -1,5 +1,5 @@
-from controllers.fetch_controller import retrievePaperMetadata
-from fastapi import FastAPI
+from controllers.fetch_controller import retrievePaperMetadataContent
+from fastapi import FastAPI, Response
 from models.route_model import SubmitModel
 
 app = FastAPI()
@@ -11,6 +11,6 @@ async def main():
 
 
 @app.post("/submit/")
-async def submit(req: SubmitModel):
-    data = retrievePaperMetadata(req.source, req.paper_id)
-    return {"content": data}
+async def submit(req: SubmitModel, res: Response):
+    data = retrievePaperMetadataContent(req.source, req.paper_id)
+    return data
