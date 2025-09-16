@@ -1,7 +1,12 @@
-from controllers.fetch_controller import retrievePaperMetadataContent
+from controllers.fetch_controller import (
+    retrievePaperDatasetList,
+    retrievePaperMetadataContent,
+)
 from fastapi import FastAPI, Response
-from models.route_model import SubmitModel
+from models.route_model import ExtractModel, GetPaperModel
+from dotenv import load_dotenv
 
+load_dotenv()
 app = FastAPI()
 
 
@@ -10,7 +15,13 @@ async def main():
     return {"message": "Working"}
 
 
-@app.post("/submit/")
-async def submit(req: SubmitModel, res: Response):
+@app.post("/getpaper/")
+async def submit(req: GetPaperModel, res: Response):
     data = retrievePaperMetadataContent(req.source, req.paper_id)
+    return data
+
+
+@app.post("/extract/")
+async def extract(req: ExtractModel, res: Response):
+    data = await retrievePaperDatasetList(req.paper_pdf_url)
     return data
