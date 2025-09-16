@@ -17,11 +17,13 @@ async def main():
 
 @app.post("/getpaper/")
 async def submit(req: GetPaperModel, res: Response):
+    print("Processing Get Paper Request")
     data = retrievePaperMetadataContent(req.source, req.paper_id)
     return data
 
 
 @app.post("/extract/")
 async def extract(req: ExtractModel, res: Response):
+    print("Processing Extract Request")
     data = await retrievePaperDatasetList(req.paper_pdf_url)
     return data
