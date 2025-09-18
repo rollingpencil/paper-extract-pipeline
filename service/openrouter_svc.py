@@ -1,4 +1,5 @@
 import os
+import time
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from pydantic_ai import Agent, PromptedOutput
@@ -31,11 +32,15 @@ data_extraction_agent = Agent(
 async def _extract_paper_content(
     prompt: str, error_message: str
 ) -> list[ExtractionOutput]:
+    time_start = time.perf_counter()
     result = await data_extraction_agent.run(prompt)
+    time_end = time.perf_counter()
+    print(f"Completed in {time_end - time_start:.2f} seconds")
     return result.output
 
 
 async def extract_paper_dataset(paper_text: str) -> list[ExtractionOutput]:
+    print("Extracting datasets")
     prompt = f"Given the following academic paper text:\n\n{paper_text}\n\nExtract datasets and benchmarks used for training or evaluation in the paper."
     return await _extract_paper_content(
         prompt, "Failed to parse extracted datasets as JSON."
@@ -43,6 +48,7 @@ async def extract_paper_dataset(paper_text: str) -> list[ExtractionOutput]:
 
 
 async def extract_paper_models(paper_text: str) -> list[ExtractionOutput]:
+    print("Extracting models")
     prompt = f"Given the following academic paper text:\n\n{paper_text}\n\nExtract the models referenced, such as language models, rerank models, embed models, models that implements a technique or models used for comparison, in the paper. Exclude methods, benchmarks and framework."
     return await _extract_paper_content(
         prompt, "Failed to parse extracted models as JSON."
@@ -50,7 +56,16 @@ async def extract_paper_models(paper_text: str) -> list[ExtractionOutput]:
 
 
 async def extract_paper_methods(paper_text: str) -> list[ExtractionOutput]:
+    print("Extracting methods")
     prompt = f"Given the following academic paper text:\n\n{paper_text}\n\nExtract the terms of techniques used in the paper. Exclude language models, rerank models, embed models."
     return await _extract_paper_content(
-        prompt, "Failed to parse extracted models as JSON."
+        prompt, "Failed to parse extracted methods as JSON."
+    )
+
+
+async def extract_paper_tasking(paper_text: str) -> list[ExtractionOutput]:
+    print("Extracting tasking")
+    prompt = f"Given the following academic paper text:\n\n{paper_text}\n\nExtract the tasks/use cases covered in the paper"
+    return await _extract_paper_content(
+        prompt, "Failed to parse extracted tasking as JSON."
     )

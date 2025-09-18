@@ -4,6 +4,7 @@ from service.openrouter_svc import (
     extract_paper_dataset,
     extract_paper_methods,
     extract_paper_models,
+    extract_paper_tasking,
 )
 from utils.constants import SourceType
 
@@ -41,6 +42,9 @@ async def retrievePaperDatasetList(pdf_url: str) -> dict:
     )
     full_text_result["models"] = await extract_paper_models(full_text_result["content"])
     full_text_result["methods"] = await extract_paper_methods(
+        full_text_result["content"]
+    )
+    full_text_result["tasking"] = await extract_paper_tasking(
         full_text_result["content"]
     )
     return full_text_result
