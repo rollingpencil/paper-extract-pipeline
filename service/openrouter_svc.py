@@ -1,10 +1,11 @@
 import os
 import time
 from dotenv import load_dotenv
+from fastapi import HTTPException
 from pydantic import BaseModel
-from pydantic_ai import Agent, PromptedOutput
+from pydantic_ai import Agent, ModelHTTPError, PromptedOutput
 from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.providers.openrouter import OpenRouterProvider
+from pydantic_ai.providers.openai import OpenAIProvider
 
 load_dotenv()
 
@@ -16,14 +17,16 @@ class ExtractionOutput(BaseModel):
     description: str
 
 
-gpt_oss_model = OpenAIChatModel(
-    # "openai/gpt-oss-20b:free",
-    "deepseek/deepseek-chat-v3.1:free",
-    provider=OpenRouterProvider(api_key=os.getenv("OPENROUTER_API_KEY")),
+llm_model = OpenAIChatModel(
+    os.getenv("MODEL_NAME") or "",
+    provider=OpenAIProvider(
+        base_url=os.getenv("OPENAI_COMPAT_API_ENDPOINT"),
+        api_key=os.getenv("OPENAI_COMPAT_API_KEY"),
+    ),
 )
 
 data_extraction_agent = Agent(
-    gpt_oss_model,
+    llm_model,
     system_prompt=DATA_EXTRACTION_SYSTEM_PROMPT,
     output_type=PromptedOutput(list[ExtractionOutput]),
 )
@@ -33,7 +36,12 @@ async def _extract_paper_content(
     prompt: str, error_message: str
 ) -> list[ExtractionOutput]:
     time_start = time.perf_counter()
-    result = await data_extraction_agent.run(prompt)
+
+    try:
+        result = await data_extraction_agent.run(prompt)
+    except ModelHTTPError:
+        raise HTTPException(status_code=500, detail=error_message)
+
     time_end = time.perf_counter()
     print(f"Completed in {time_end - time_start:.2f} seconds")
     return result.output
