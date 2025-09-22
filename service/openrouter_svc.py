@@ -17,8 +17,9 @@ class ExtractionOutput(BaseModel):
 
 
 gpt_oss_model = OpenAIChatModel(
-    # "openai/gpt-oss-20b:free",
-    "deepseek/deepseek-chat-v3.1:free",
+    "openai/gpt-oss-20b:free",
+    #"deepseek/deepseek-chat-v3.1:free",
+    #"openai/gpt-oss-120b:free",
     provider=OpenRouterProvider(api_key=os.getenv("OPENROUTER_API_KEY")),
 )
 
