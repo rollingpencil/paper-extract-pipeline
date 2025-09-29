@@ -1,13 +1,12 @@
+from dotenv import load_dotenv
+from fastapi import FastAPI, Response
+
 from controllers.fetch_controller import (
     retrievePaperDatasetList,
-    retrievePaperMetadataContent
+    retrievePaperMetadataContent,
 )
-from controllers.generate_controller import (
-    generate_ontology_graph
-)
-from fastapi import FastAPI, Response
-from models.route_model import ExtractModel, GetPaperModel, BuildGraphModel
-from dotenv import load_dotenv
+from controllers.generate_controller import generate_ontology_graph
+from models.route_model import BuildGraphModel, ExtractModel, GetPaperModel
 
 load_dotenv()
 app = FastAPI()
@@ -31,7 +30,8 @@ async def extract(req: ExtractModel, res: Response):
     data = await retrievePaperDatasetList(req.paper_pdf_url)
     return data
 
+
 @app.post("/buildgraph/")
-async def extract(req: BuildGraphModel, res: Response):
-   data = await generate_ontology_graph(req.topic, req.num_papers)
-   return data
+async def buildgraph(req: BuildGraphModel, res: Response):
+    data = await generate_ontology_graph(req.topic, req.num_papers)
+    return data
