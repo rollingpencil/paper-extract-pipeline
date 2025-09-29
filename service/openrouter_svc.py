@@ -4,7 +4,7 @@ import time
 import pydantic_core
 from dotenv import load_dotenv
 from fastapi import HTTPException
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, PermissionDeniedError
 from pydantic import BaseModel
 from pydantic_ai import Agent, ModelHTTPError, PromptedOutput
 from pydantic_ai.models.openai import OpenAIChatModel
@@ -46,10 +46,14 @@ embedding_client = AsyncOpenAI(
 
 async def _embed_content(content: str) -> str:
     print("Embedding content")
-    embedding = await embedding_client.embeddings.create(
-        input=content,
-        model=os.getenv("EMBED_MODEL_NAME"),
-    )
+    try:
+        embedding = await embedding_client.embeddings.create(
+            input=content,
+            model=os.getenv("EMBED_MODEL_NAME"),
+        )
+    except PermissionDeniedError:
+        raise HTTPException(status_code=500, detail=f"Failed to embed: {content}")
+
     embedding_data = embedding.data[0].embedding
     embedding_json = pydantic_core.to_json(embedding_data).decode()
     return embedding_json
