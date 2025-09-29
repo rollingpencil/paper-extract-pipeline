@@ -1,8 +1,8 @@
 import feedparser
-import requests
-from models.exceptions import PaperFetchError
 import pymupdf
+import requests
 
+from models.exceptions import PaperFetchError
 
 ARXIV_BASE_URL = "http://export.arxiv.org/api/query?"
 ARXIV_BASE_PDF_URL = "https://arxiv.org/pdf/"
@@ -38,6 +38,7 @@ def fetch_pdf_content(pdf_url: str) -> str:
     doc_text = chr(12).join([page.get_text() for page in doc])
     return doc_text
 
+
 def fetch_document_id_by_topic(topic: str, num_papers: int) -> list:
     documents = []
     start = 0
@@ -46,13 +47,13 @@ def fetch_document_id_by_topic(topic: str, num_papers: int) -> list:
 
     if response.status_code != 200:
         raise PaperFetchError("Failed to fetch paper metadata from arXiv.")
-    
+
     feed = feedparser.parse(response.text)
 
     # Extract the document IDs per entry and formulate the PDF link
     for entry in feed.entries:
         doc = {}
-        doc["id"]  = entry.id.split('/abs/')[-1] 
+        doc["id"] = entry.id.split("/abs/")[-1]
         doc["pdf_link"] = f"{ARXIV_BASE_PDF_URL}{doc['id']}"
         documents.append(doc)
 
