@@ -6,7 +6,13 @@ from controllers.fetch_controller import (
     retrievePaperMetadataContent,
 )
 from controllers.generate_controller import generate_ontology_graph
-from models.route_model import BuildGraphModel, ExtractModel, GetPaperModel
+from models.route_model import (
+    BuildGraphModel,
+    ExtractModel,
+    GetEmbeddingModel,
+    GetPaperModel,
+)
+from service.openrouter_svc import embed_content
 
 load_dotenv()
 app = FastAPI()
@@ -34,4 +40,10 @@ async def extract(req: ExtractModel, res: Response):
 @app.post("/buildgraph/")
 async def buildgraph(req: BuildGraphModel, res: Response):
     data = await generate_ontology_graph(req.topic, req.num_papers)
+    return data
+
+
+@app.post("/embed/")
+async def embed(req: GetEmbeddingModel):
+    data = await embed_content(req.content)
     return data

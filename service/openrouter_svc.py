@@ -44,7 +44,7 @@ embedding_client = AsyncOpenAI(
 )
 
 
-async def _embed_content(content: str) -> str:
+async def embed_content(content: str) -> str:
     print("Embedding content")
     try:
         embedding = await embedding_client.embeddings.create(
@@ -75,7 +75,7 @@ async def _extract_paper_content(
     extracted_term = result.output
     extracted_term_with_embed = []
     for term in extracted_term:
-        term_embed = await _embed_content(term.name)
+        term_embed = await embed_content(term.name)
         extracted_term_with_embed.append(
             ExtractionOutputWEmbed(
                 name=term.name, description=term.description, embedding=term_embed

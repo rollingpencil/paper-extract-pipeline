@@ -15,3 +15,7 @@ class ExtractModel(BaseModel):
 class BuildGraphModel(BaseModel):
     topic: str = Field(..., example="Reranking Techniques")
     num_papers: int = Field(..., example=10)
+
+
+class GetEmbeddingModel(BaseModel):
+    content: str = Field(..., example="Content to embed")
