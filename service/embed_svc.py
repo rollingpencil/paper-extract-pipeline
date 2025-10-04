@@ -15,7 +15,7 @@ embedding_client = AsyncOpenAI(
 
 
 async def embed_content(content: str) -> EmbeddingVector:
-    print("Embedding content")
+    print("E", end='')
     try:
         embedding = await embedding_client.embeddings.create(
             input=content,

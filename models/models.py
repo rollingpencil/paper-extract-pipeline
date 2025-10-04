@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import TypeAlias
 
 from pydantic import BaseModel
@@ -6,8 +7,11 @@ EmbeddingVector: TypeAlias = list[float]
 
 
 class PaperMetadata(BaseModel):
+    id: str
     title: str
     authors: list[str]
+    date_published: datetime
+    date_updated: datetime
     summary: str
     pdf_url: str
     embedding: EmbeddingVector

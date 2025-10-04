@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import feedparser
 import pymupdf
 import requests
@@ -21,8 +23,11 @@ async def fetch_paper_metadata(paper_id: str) -> PaperMetadata:
     if len(feed.entries) != 1:
         raise PaperFetchError("Paper not found or multiple entries returned.")
 
+    paper_id = feed.entries[0].id.split("/")[-1]
     title = feed.entries[0].title.replace("\n", " ").strip()
     authors = [author.name for author in feed.entries[0].authors]
+    date_published = datetime.fromisoformat(feed.entries[0].published)
+    date_updated = datetime.fromisoformat(feed.entries[0].updated)
     summary = feed.entries[0].summary.replace("\n", " ").strip()
 
     pdf_link = None
@@ -34,10 +39,14 @@ async def fetch_paper_metadata(paper_id: str) -> PaperMetadata:
         raise PaperFetchError("Paper PDF Link not found.")
 
     summary_embedding = await embed_content(summary)
+    print()
 
     paper_meta = PaperMetadata(
+        id=paper_id,
         title=title,
         authors=authors,
+        date_published=date_published,
+        date_updated=date_updated,
         summary=summary,
         pdf_url=pdf_link,
         embedding=summary_embedding,

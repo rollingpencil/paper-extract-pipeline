@@ -1,6 +1,5 @@
 import os
 import time
-from typing import Optional
 
 from dotenv import load_dotenv
 from fastapi import HTTPException
@@ -18,7 +17,7 @@ DATA_EXTRACTION_SYSTEM_PROMPT = "You are a highly skilled data extraction specia
 
 
 class ExtractionOutput(BaseModel):
-    name: Optional[str]
+    name: str
     description: str
 
 
@@ -45,9 +44,6 @@ async def _extract_paper_content(prompt: str, error_message: str) -> list[NodeRe
     except ModelHTTPError:
         raise HTTPException(status_code=500, detail=error_message)
 
-    time_end = time.perf_counter()
-    print(f"Completed in {time_end - time_start:.2f} seconds")
-
     extracted_term = result.output
     extracted_term_with_embed = []
     for term in extracted_term:
@@ -57,6 +53,9 @@ async def _extract_paper_content(prompt: str, error_message: str) -> list[NodeRe
                 title=term.name, description=term.description, embedding=term_embed
             )
         )
+    print()
+    time_end = time.perf_counter()
+    print(f"Completed in {time_end - time_start:.2f} seconds")
 
     return extracted_term_with_embed
 
@@ -87,7 +86,7 @@ async def extract_paper_methods(paper_text: str) -> list[NodeRecord]:
 
 async def extract_paper_tasking(paper_text: str) -> list[NodeRecord]:
     print("Extracting tasking")
-    prompt = f"Given the following academic paper text:\n\n{paper_text}\n\nExtract the tasks/use cases covered in the paper"
+    prompt = f"Given the following academic paper text:\n\n{paper_text}\n\nExtract the tasks/use cases covered in the paper."
     return await _extract_paper_content(
         prompt, "Failed to parse extracted tasking as JSON."
     )

@@ -6,9 +6,9 @@ from controllers.fetch_controller import (
     retrievePaperExtractedData,
     retrievePaperMetadata,
 )
-
-# # from controllers.generate_controller import generate_ontology_graph
+from controllers.generate_controller import generate_ontology_graph
 from models.route_model import (
+    BuildGraphModel,
     ExtractModel,
     GetPaperModel,
 )
@@ -36,14 +36,14 @@ async def extract(req: ExtractModel, res: Response):
     return data
 
 
-# @app.post("/buildgraph/")
-# async def buildgraph(req: BuildGraphModel, res: Response):
-#     data = await generate_ontology_graph(req.topic, req.num_papers)
-#     return data
+@app.post("/buildgraph/")
+async def buildgraph(req: BuildGraphModel, res: Response):
+    data = await generate_ontology_graph(req.topic, req.num_papers)
+    return data
 
 
 @app.post("/extractpaper/")
 async def extractPaper(req: GetPaperModel, res: Response):
     print("Processing Extract Paper Metadata and Data Request")
-    data = retrievePaper(req.source, req.paper_id)
+    data = await retrievePaper(req.source, req.paper_id)
     return data

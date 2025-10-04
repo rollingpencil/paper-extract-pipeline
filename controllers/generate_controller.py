@@ -2,8 +2,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 
 from controllers.fetch_controller import (
-    retrievePaperExtractedData,
-    retrievePaperMetadata,
+    retrievePaper,
 )
 from service.arxiv_svc import (
     fetch_document_id_by_topic,
@@ -22,25 +21,23 @@ def _retrieveDocumentIds(topic: str, num_papers: int) -> list:
 async def generate_ontology_graph(topic: str, num_papers: int):
     data = {}
     ids = _retrieveDocumentIds(topic, num_papers)
+    print(f"Processing ids: {[id["id"] for id in ids]}")
 
     for id in ids:
-        document_data = {}
+        print(f"Processing paper with id: {id["id"]}")
+        data[id["id"]] = await retrievePaper(id["source"], id["id"])
 
-        document_data["metadata"] = retrievePaperMetadata(id["source"], id["id"])
-        document_data["pdf_data"] = await retrievePaperExtractedData(id["pdf_link"])
-
-        data[id["id"]] = document_data
-
-    plot_nodes(data)
+    _plot_nodes(data)
 
 
-def plot_nodes(data: dict):
+def _plot_nodes(data: dict):
     color_map = {
         "paper": "lightgray",
         "author": "pink",
         "dataset": "skyblue",
         "model": "lightgreen",
         "method": "salmon",
+        "tasking": "purple"
     }
 
     graph = nx.Graph()
@@ -50,27 +47,33 @@ def plot_nodes(data: dict):
         graph.add_node(document_id, type="paper")
 
         # Add the author nodes and link it to the current paper
-        for author in document_data["metadata"]["authors"]:
+        for author in document_data.metadata.authors:
             graph.add_node(author, type="author")
             graph.add_edge(document_id, author, relation="written by")
 
         # Add the database nodes and link it to the current paper
-        for database in document_data["pdf_data"]["datasets"]:
-            db_name = database.name.lower()
-            graph.add_node(db_name, type="dataset")
-            graph.add_edge(document_id, db_name, relation="dataset trained on")
+        for dataset in document_data.pdf_data.datasets:
+            ds_name = dataset.title.lower()
+            graph.add_node(ds_name, type="dataset")
+            graph.add_edge(document_id, ds_name, relation="dataset trained on")
 
         # Add the model nodes and link it to the current paper
-        for model in document_data["pdf_data"]["models"]:
-            model_name = model.name.lower()
+        for model in document_data.pdf_data.models:
+            model_name = model.title.lower()
             graph.add_node(model_name, type="model")
             graph.add_edge(document_id, model_name, relation="model used")
 
         # Add the model nodes and link it to the current paper
-        for method in document_data["pdf_data"]["methods"]:
-            method_name = method.name.lower()
+        for method in document_data.pdf_data.methods:
+            method_name = method.title.lower()
             graph.add_node(method_name, type="method")
             graph.add_edge(document_id, method_name, relation="method used")
+
+        # Add the tasking nodes and link it to the current paper
+        for task in document_data.pdf_data.tasking:
+            task_name = task.title.lower()
+            graph.add_node(task_name, type="tasking")
+            graph.add_edge(document_id, task_name, relation="tasking performed")
 
     # Extract colors based on node attribute
     node_colors = [color_map[graph.nodes[n].get("type", "paper")] for n in graph.nodes]
