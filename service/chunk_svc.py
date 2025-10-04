@@ -17,4 +17,5 @@ async def chunk_and_embed_text(content: str) -> list[NodeRecord]:
         docs_content_with_embed.append(
             NodeRecord(title=None, description=chunk, embedding=embedding)
         )
+    print()
     return docs_content_with_embed
