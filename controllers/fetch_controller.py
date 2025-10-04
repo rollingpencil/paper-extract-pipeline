@@ -1,5 +1,7 @@
 from models.exceptions import SourceTypeError
+from models.models import Paper, PaperExtractedData, PaperMetadata
 from service.arxiv_svc import fetch_paper_metadata, fetch_pdf_content
+from service.chunk_svc import chunk_and_embed_text
 from service.openrouter_svc import (
     extract_paper_dataset,
     extract_paper_methods,
@@ -9,43 +11,40 @@ from service.openrouter_svc import (
 from utils.constants import SourceType
 
 
-def retrievePaperMetadata(source: SourceType, paper_id: str) -> dict:
-    result = {}
+async def retrievePaperMetadata(source: SourceType, paper_id: str) -> PaperMetadata:
     match source:
         case SourceType.ARXIV:
-            result["content"] = fetch_paper_metadata(paper_id)
+            return await fetch_paper_metadata(paper_id)
         case _:
             raise SourceTypeError
-    return result
 
 
-def retrievePaperContent(pdf_url: str) -> dict:
-    result = {}
-    result["content"] = fetch_pdf_content(pdf_url)
-    return result
+async def retrievePaperExtractedData(pdf_url: str) -> PaperExtractedData:
+    pdf_text = fetch_pdf_content(pdf_url)
+    datasets = await extract_paper_dataset(pdf_text)
+    models = await extract_paper_models(pdf_text)
+    methods = await extract_paper_methods(pdf_text)
+    tasking = await extract_paper_tasking(pdf_text)
+    content = await chunk_and_embed_text(pdf_text)
 
-
-def retrievePaperMetadataContent(source: SourceType, paper_id: str) -> dict:
-    meta_result = retrievePaperMetadata(source, paper_id)
-
-    content_result = retrievePaperContent(meta_result["content"].get("pdf_url", ""))
-
-    meta_result["content"]["full_text"] = content_result["content"]
-
-    return meta_result
-
-
-async def retrievePaperDatasetList(pdf_url: str) -> dict:
-    full_text_result = retrievePaperContent(pdf_url)
-    full_text_result["datasets"] = await extract_paper_dataset(
-        full_text_result["content"]
+    return PaperExtractedData(
+        content=content,
+        datasets=datasets,
+        models=models,
+        methods=methods,
+        tasking=tasking,
     )
-    full_text_result["models"] = await extract_paper_models(full_text_result["content"])
-    full_text_result["methods"] = await extract_paper_methods(
-        full_text_result["content"]
-    )
-    full_text_result["tasking"] = await extract_paper_tasking(
-        full_text_result["content"]
-    )
-    return full_text_result
 
+
+async def retrievePaper(source: SourceType, paper_id: str) -> Paper:
+    match source:
+        case SourceType.ARXIV:
+            return await _retrievePaper_arxiv(paper_id)
+        case _:
+            raise SourceTypeError
+
+
+async def _retrievePaper_arxiv(paper_id: str) -> Paper:
+    metadata = await fetch_paper_metadata(paper_id)
+    pdf_data = await retrievePaperExtractedData(metadata.pdf_url)
+    return Paper(metadata=metadata, pdf_data=pdf_data)
