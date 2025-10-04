@@ -3,12 +3,14 @@ import pymupdf
 import requests
 
 from models.exceptions import PaperFetchError
+from models.models import PaperMetadata
+from service.embed_svc import embed_content
 
 ARXIV_BASE_URL = "http://export.arxiv.org/api/query?"
 ARXIV_BASE_PDF_URL = "https://arxiv.org/pdf/"
 
 
-def fetch_paper_metadata(paper_id: str) -> dict:
+async def fetch_paper_metadata(paper_id: str) -> PaperMetadata:
     paper_meta = {}
     query_params = "id_list="
     response = requests.get(f"{ARXIV_BASE_URL}{query_params}{paper_id}")
@@ -19,12 +21,27 @@ def fetch_paper_metadata(paper_id: str) -> dict:
     if len(feed.entries) != 1:
         raise PaperFetchError("Paper not found or multiple entries returned.")
 
-    paper_meta["title"] = feed.entries[0].title.replace("\n", " ").strip()
-    paper_meta["authors"] = [author.name for author in feed.entries[0].authors]
-    paper_meta["summary"] = feed.entries[0].summary.replace("\n", " ").strip()
+    title = feed.entries[0].title.replace("\n", " ").strip()
+    authors = [author.name for author in feed.entries[0].authors]
+    summary = feed.entries[0].summary.replace("\n", " ").strip()
+
+    pdf_link = None
     for link in feed.entries[0].links:
         if link.type == "application/pdf":
             paper_meta["pdf_url"] = link.href
+            pdf_link = link.href
+    if pdf_link is None:
+        raise PaperFetchError("Paper PDF Link not found.")
+
+    summary_embedding = await embed_content(summary)
+
+    paper_meta = PaperMetadata(
+        title=title,
+        authors=authors,
+        summary=summary,
+        pdf_url=pdf_link,
+        embedding=summary_embedding,
+    )
     return paper_meta
 
 

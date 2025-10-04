@@ -2,17 +2,16 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Response
 
 from controllers.fetch_controller import (
-    retrievePaperDatasetList,
-    retrievePaperMetadataContent,
+    retrievePaper,
+    retrievePaperExtractedData,
+    retrievePaperMetadata,
 )
-from controllers.generate_controller import generate_ontology_graph
+
+# # from controllers.generate_controller import generate_ontology_graph
 from models.route_model import (
-    BuildGraphModel,
     ExtractModel,
-    GetEmbeddingModel,
     GetPaperModel,
 )
-from service.openrouter_svc import embed_content
 
 load_dotenv()
 app = FastAPI()
@@ -23,27 +22,28 @@ async def main():
     return {"message": "Working"}
 
 
-@app.post("/getpaper/")
+@app.post("/getpapermetadata/")
 async def submit(req: GetPaperModel, res: Response):
-    print("Processing Get Paper Request")
-    data = retrievePaperMetadataContent(req.source, req.paper_id)
+    print("Processing Get Paper Metadata Request")
+    data = retrievePaperMetadata(req.source, req.paper_id)
     return data
 
 
-@app.post("/extract/")
+@app.post("/extractpaperdata/")
 async def extract(req: ExtractModel, res: Response):
-    print("Processing Extract Request")
-    data = await retrievePaperDatasetList(req.paper_pdf_url)
+    print("Processing Extract Paper Data Request")
+    data = await retrievePaperExtractedData(req.paper_pdf_url)
     return data
 
 
-@app.post("/buildgraph/")
-async def buildgraph(req: BuildGraphModel, res: Response):
-    data = await generate_ontology_graph(req.topic, req.num_papers)
-    return data
+# @app.post("/buildgraph/")
+# async def buildgraph(req: BuildGraphModel, res: Response):
+#     data = await generate_ontology_graph(req.topic, req.num_papers)
+#     return data
 
 
-@app.post("/embed/")
-async def embed(req: GetEmbeddingModel):
-    data = await embed_content(req.content)
+@app.post("/extractpaper/")
+async def extractPaper(req: GetPaperModel, res: Response):
+    print("Processing Extract Paper Metadata and Data Request")
+    data = retrievePaper(req.source, req.paper_id)
     return data

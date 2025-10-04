@@ -1,14 +1,16 @@
 import os
 import time
+from typing import Optional
 
-import pydantic_core
 from dotenv import load_dotenv
 from fastapi import HTTPException
-from openai import AsyncOpenAI, PermissionDeniedError
 from pydantic import BaseModel
 from pydantic_ai import Agent, ModelHTTPError, PromptedOutput
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
+
+from models.models import NodeRecord
+from service.embed_svc import embed_content
 
 load_dotenv()
 
@@ -16,12 +18,8 @@ DATA_EXTRACTION_SYSTEM_PROMPT = "You are a highly skilled data extraction specia
 
 
 class ExtractionOutput(BaseModel):
-    name: str
+    name: Optional[str]
     description: str
-
-
-class ExtractionOutputWEmbed(ExtractionOutput):
-    embedding: str
 
 
 llm_model = OpenAIChatModel(
@@ -38,30 +36,8 @@ data_extraction_agent = Agent(
     output_type=PromptedOutput(list[ExtractionOutput]),
 )
 
-embedding_client = AsyncOpenAI(
-    base_url=os.getenv("OPENAI_COMPAT_EMBED_API_ENDPOINT"),
-    api_key=os.getenv("OPENAI_COMPAT_EMBED_API_KEY"),
-)
 
-
-async def embed_content(content: str) -> str:
-    print("Embedding content")
-    try:
-        embedding = await embedding_client.embeddings.create(
-            input=content,
-            model=os.getenv("EMBED_MODEL_NAME"),
-        )
-    except PermissionDeniedError:
-        raise HTTPException(status_code=500, detail=f"Failed to embed: {content}")
-
-    embedding_data = embedding.data[0].embedding
-    embedding_json = pydantic_core.to_json(embedding_data).decode()
-    return embedding_json
-
-
-async def _extract_paper_content(
-    prompt: str, error_message: str
-) -> list[ExtractionOutputWEmbed]:
+async def _extract_paper_content(prompt: str, error_message: str) -> list[NodeRecord]:
     time_start = time.perf_counter()
 
     try:
@@ -77,15 +53,15 @@ async def _extract_paper_content(
     for term in extracted_term:
         term_embed = await embed_content(term.name)
         extracted_term_with_embed.append(
-            ExtractionOutputWEmbed(
-                name=term.name, description=term.description, embedding=term_embed
+            NodeRecord(
+                title=term.name, description=term.description, embedding=term_embed
             )
         )
 
     return extracted_term_with_embed
 
 
-async def extract_paper_dataset(paper_text: str) -> list[ExtractionOutputWEmbed]:
+async def extract_paper_dataset(paper_text: str) -> list[NodeRecord]:
     print("Extracting datasets")
     prompt = f"Given the following academic paper text:\n\n{paper_text}\n\nExtract datasets and benchmarks used for training or evaluation in the paper."
     return await _extract_paper_content(
@@ -93,7 +69,7 @@ async def extract_paper_dataset(paper_text: str) -> list[ExtractionOutputWEmbed]
     )
 
 
-async def extract_paper_models(paper_text: str) -> list[ExtractionOutputWEmbed]:
+async def extract_paper_models(paper_text: str) -> list[NodeRecord]:
     print("Extracting models")
     prompt = f"Given the following academic paper text:\n\n{paper_text}\n\nExtract the models referenced, such as language models, rerank models, embed models, models that implements a technique or models used for comparison, in the paper. Exclude methods, benchmarks and framework."
     return await _extract_paper_content(
@@ -101,7 +77,7 @@ async def extract_paper_models(paper_text: str) -> list[ExtractionOutputWEmbed]:
     )
 
 
-async def extract_paper_methods(paper_text: str) -> list[ExtractionOutputWEmbed]:
+async def extract_paper_methods(paper_text: str) -> list[NodeRecord]:
     print("Extracting methods")
     prompt = f"Given the following academic paper text:\n\n{paper_text}\n\nExtract the terms of techniques used in the paper. Exclude language models, rerank models, embed models."
     return await _extract_paper_content(
@@ -109,7 +85,7 @@ async def extract_paper_methods(paper_text: str) -> list[ExtractionOutputWEmbed]
     )
 
 
-async def extract_paper_tasking(paper_text: str) -> list[ExtractionOutputWEmbed]:
+async def extract_paper_tasking(paper_text: str) -> list[NodeRecord]:
     print("Extracting tasking")
     prompt = f"Given the following academic paper text:\n\n{paper_text}\n\nExtract the tasks/use cases covered in the paper"
     return await _extract_paper_content(
