@@ -6,12 +6,13 @@ from controllers.fetch_controller import (
     retrievePaperExtractedData,
     retrievePaperMetadata,
 )
-from controllers.generate_controller import generate_ontology_graph
+from controllers.generate_controller import generate_ontology_graph, add_to_graph
 from models.route_model import (
     BuildGraphModel,
     ExtractModel,
     GetPaperModel,
 )
+from models.models import Paper
 
 load_dotenv()
 app = FastAPI()
@@ -47,3 +48,10 @@ async def extractPaper(req: GetPaperModel, res: Response):
     print("Processing Extract Paper Metadata and Data Request")
     data = await retrievePaper(req.source, req.paper_id)
     return data
+
+
+@app.post("/addtograph/")
+def addToGraph(paper: Paper, res: Response):
+    print(f"Adding paper '{paper.metadata.title}' to Neo4j graph")
+    add_to_graph(paper)
+    return {"message": f"Paper '{paper.metadata.title}' successfully added to graph"}

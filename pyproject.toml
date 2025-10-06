@@ -10,6 +10,7 @@ dependencies = [
     "feedparser>=6.0.12",
     "langchain-text-splitters>=0.3.11",
     "matplotlib>=3.10.6",
+    "neo4j>=6.0.2",
     "networkx>=3.5",
     "openai>=1.107.2",
     "pydantic-ai>=1.0.6",
