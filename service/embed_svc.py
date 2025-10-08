@@ -12,9 +12,7 @@ embedding_client = AsyncOpenAI(
 
 
 async def embed_content(content: str) -> EmbeddingVector:
-    log.debug(
-        f"Embedding content: {len(content) > 50 and content[:50] + '...' or content}"
-    )
+    log.debug(f"Embedding: {len(content) > 40 and content[:40] + '...' or content}")
     try:
         embedding = await embedding_client.embeddings.create(
             input=content,
