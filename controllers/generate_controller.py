@@ -4,22 +4,20 @@ import networkx as nx
 from controllers.fetch_controller import (
     retrievePaper,
 )
+from models.models import Paper
 from service.arxiv_svc import (
     fetch_document_id_by_topic,
 )
-
-from models.models import (
-    Paper
-)
 from service.neo4j_svc import (
     get_neo4j_driver,
-    store_paper_node,
     store_authors,
     store_content_chunks,
+    store_paper_node,
+    store_paper_similarity_links,
     store_semantic_entities,
-    store_paper_similarity_links
 )
 from utils.constants import SourceType
+from utils.logger import log
 
 
 def _retrieveDocumentIds(topic: str, num_papers: int) -> list:
@@ -33,10 +31,10 @@ def _retrieveDocumentIds(topic: str, num_papers: int) -> list:
 async def generate_ontology_graph(topic: str, num_papers: int):
     data = {}
     ids = _retrieveDocumentIds(topic, num_papers)
-    print(f"Processing ids: {[id["id"] for id in ids]}")
+    log.info(f"Processing ids: {[id['id'] for id in ids]}")
 
     for id in ids:
-        print(f"Processing paper with id: {id["id"]}")
+        log.info(f"Processing paper with id: {id['id']}")
         data[id["id"]] = await retrievePaper(id["source"], id["id"])
 
     _plot_nodes(data)
@@ -49,7 +47,7 @@ def _plot_nodes(data: dict):
         "dataset": "skyblue",
         "model": "lightgreen",
         "method": "salmon",
-        "tasking": "purple"
+        "tasking": "purple",
     }
 
     graph = nx.Graph()
@@ -85,12 +83,10 @@ def _plot_nodes(data: dict):
         for task in document_data.pdf_data.tasking:
             task_name = task.title.lower()
             graph.add_node(task_name, type="tasking")
-            graph.add_edge(document_id, task_name,
-                           relation="tasking performed")
+            graph.add_edge(document_id, task_name, relation="tasking performed")
 
     # Extract colors based on node attribute
-    node_colors = [color_map[graph.nodes[n].get(
-        "type", "paper")] for n in graph.nodes]
+    node_colors = [color_map[graph.nodes[n].get("type", "paper")] for n in graph.nodes]
 
     plt.figure(figsize=(15, 15))  # Bigger canvas
     pos = nx.spring_layout(graph, k=0.7, iterations=100)  # Spread nodes more
@@ -106,7 +102,6 @@ def _plot_nodes(data: dict):
 
 
 def add_to_graph(paper: Paper):
-
     driver = get_neo4j_driver()
     with driver.session() as session:
         meta = paper.metadata
