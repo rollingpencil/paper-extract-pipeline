@@ -2,7 +2,7 @@ from models.exceptions import SourceTypeError
 from models.models import Paper, PaperExtractedData, PaperMetadata
 from service.arxiv_svc import fetch_paper_metadata, fetch_pdf_content
 from service.chunk_svc import chunk_and_embed_text
-from service.openrouter_svc import (
+from service.extract_svc import (
     extract_paper_dataset,
     extract_paper_methods,
     extract_paper_models,
