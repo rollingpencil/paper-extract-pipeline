@@ -16,6 +16,7 @@ from service.neo4j_svc import (
     store_paper_similarity_links,
     store_semantic_entities,
 )
+from service.query_svc import GraphQueryResult, query
 from utils.constants import SourceType
 from utils.logger import log
 from utils.utils import get_envvar
@@ -114,3 +115,8 @@ def add_to_graph(paper: Paper):
         store_content_chunks(session, pdf_data, id)
         store_semantic_entities(session, pdf_data, id)
         store_paper_similarity_links(session, meta)
+
+
+async def query_database(query_text: str) -> GraphQueryResult:
+    log.info("Processing Query")
+    return await query(query_text)

@@ -5,12 +5,17 @@ from controllers.fetch_controller import (
     retrieve_paper_extracted_data,
     retrieve_paper_metadata,
 )
-from controllers.generate_controller import add_to_graph, generate_ontology_graph
+from controllers.generate_controller import (
+    add_to_graph,
+    generate_ontology_graph,
+    query_database,
+)
 from models.models import Paper
 from models.route_model import (
     BuildGraphModel,
     ExtractModel,
     GetPaperModel,
+    QueryModel,
 )
 from utils.logger import log
 
@@ -65,3 +70,9 @@ async def import_paper_to_graph(req: GetPaperModel, res: Response):
     log.info(f"Adding paper '{paper.metadata.title}' to Neo4j graph")
     add_to_graph(paper)
     return {"message": f"Paper '{paper.metadata.title}' successfully added to graph"}
+
+
+@app.post("/query/")
+async def send_query_database(req: QueryModel, res: Response):
+    log.info("Processing Query")
+    return await query_database(req.qns)

@@ -14,7 +14,6 @@ from utils.utils import get_envvar
 NEO4J_QUERY_SYSTEM_PROMPT = f"""
 You are a Neo4j graph database expert with access to both Cypher queries and vector similarity search.
 
-Graph Schema:
 {get_graph_schema()}
 
 When asked a question:
@@ -28,6 +27,9 @@ When asked a question:
 
 Always ensure your Cypher syntax is correct and optimized.
 """
+
+log.debug("Query System Prompt")
+log.debug(NEO4J_QUERY_SYSTEM_PROMPT)
 
 
 class GraphQueryResult(BaseModel):
