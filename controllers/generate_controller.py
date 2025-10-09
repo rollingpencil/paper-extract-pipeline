@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 
 from controllers.fetch_controller import (
-    retrievePaper,
+    retrieve_paper,
 )
 from models.models import Paper
 from service.arxiv_svc import (
@@ -18,9 +18,10 @@ from service.neo4j_svc import (
 )
 from utils.constants import SourceType
 from utils.logger import log
+from utils.utils import get_envvar
 
 
-def _retrieveDocumentIds(topic: str, num_papers: int) -> list:
+def _retrieve_document_ids(topic: str, num_papers: int) -> list:
     ids = fetch_document_id_by_topic(topic, num_papers)
     for id in ids:
         id["source"] = SourceType.ARXIV
@@ -30,12 +31,12 @@ def _retrieveDocumentIds(topic: str, num_papers: int) -> list:
 
 async def generate_ontology_graph(topic: str, num_papers: int):
     data = {}
-    ids = _retrieveDocumentIds(topic, num_papers)
+    ids = _retrieve_document_ids(topic, num_papers)
     log.info(f"Processing ids: {[id['id'] for id in ids]}")
 
     for id in ids:
         log.info(f"Processing paper with id: {id['id']}")
-        data[id["id"]] = await retrievePaper(id["source"], id["id"])
+        data[id["id"]] = await retrieve_paper(id["source"], id["id"])
 
     _plot_nodes(data)
 
@@ -103,7 +104,7 @@ def _plot_nodes(data: dict):
 
 def add_to_graph(paper: Paper):
     driver = get_neo4j_driver()
-    with driver.session() as session:
+    with driver.session(database=get_envvar("NEO4J_DATABASE_NAME")) as session:
         meta = paper.metadata
         pdf_data = paper.pdf_data
         id = meta.id

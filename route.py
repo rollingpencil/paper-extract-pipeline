@@ -1,9 +1,9 @@
 from fastapi import FastAPI, Response
 
 from controllers.fetch_controller import (
-    retrievePaper,
-    retrievePaperExtractedData,
-    retrievePaperMetadata,
+    retrieve_paper,
+    retrieve_paper_extracted_data,
+    retrieve_paper_metadata,
 )
 from controllers.generate_controller import add_to_graph, generate_ontology_graph
 from models.models import Paper
@@ -24,16 +24,16 @@ async def main():
 
 
 @app.post("/getpapermetadata/")
-async def submit(req: GetPaperModel, res: Response):
+async def get_paper_metadata(req: GetPaperModel, res: Response):
     log.info("Processing Get Paper Metadata Request")
-    data = retrievePaperMetadata(req.source, req.paper_id)
+    data = retrieve_paper_metadata(req.source, req.paper_id)
     return data
 
 
 @app.post("/extractpaperdata/")
-async def extract(req: ExtractModel, res: Response):
+async def extract_paper_data(req: ExtractModel, res: Response):
     log.info("Processing Extract Paper Data Request")
-    data = await retrievePaperExtractedData(req.paper_pdf_url)
+    data = await retrieve_paper_extracted_data(req.paper_pdf_url)
     return data
 
 
@@ -45,14 +45,23 @@ async def buildgraph(req: BuildGraphModel, res: Response):
 
 
 @app.post("/extractpaper/")
-async def extractPaper(req: GetPaperModel, res: Response):
+async def extract_paper(req: GetPaperModel, res: Response):
     log.info("Processing Extract Paper Metadata and Data Request")
-    data = await retrievePaper(req.source, req.paper_id)
+    data = await retrieve_paper(req.source, req.paper_id)
     return data
 
 
 @app.post("/addtograph/")
-def addToGraph(paper: Paper, res: Response):
+async def add_paper_to_graph(paper: Paper, res: Response):
+    log.info(f"Adding paper '{paper.metadata.title}' to Neo4j graph")
+    add_to_graph(paper)
+    return {"message": f"Paper '{paper.metadata.title}' successfully added to graph"}
+
+
+@app.post("/importpaper/")
+async def import_paper_to_graph(req: GetPaperModel, res: Response):
+    log.info("Processing Extract Paper Metadata and Data Request")
+    paper = await retrieve_paper(req.source, req.paper_id)
     log.info(f"Adding paper '{paper.metadata.title}' to Neo4j graph")
     add_to_graph(paper)
     return {"message": f"Paper '{paper.metadata.title}' successfully added to graph"}
