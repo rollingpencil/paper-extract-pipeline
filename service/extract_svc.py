@@ -41,7 +41,7 @@ async def _extract_paper_content(prompt: str, error_message: str) -> list[NodeRe
     try:
         result = await data_extraction_agent.run(prompt)
     except ModelHTTPError as e:
-        log.debug(e.message)
+        log.debug(e)
         raise HTTPException(status_code=500, detail=error_message)
 
     extracted_term = result.output

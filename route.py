@@ -7,9 +7,11 @@ from controllers.fetch_controller import (
 )
 from controllers.generate_controller import (
     add_to_graph,
+    check_paper_exists_graph,
     generate_ontology_graph,
     query_database,
 )
+from models.exceptions import PaperAlreadyExistsError
 from models.models import Paper
 from models.route_model import (
     BuildGraphModel,
@@ -66,6 +68,8 @@ async def add_paper_to_graph(paper: Paper, res: Response):
 @app.post("/importpaper/")
 async def import_paper_to_graph(req: GetPaperModel, res: Response):
     log.info("Processing Extract Paper Metadata and Data Request")
+    if check_paper_exists_graph(req.paper_id):
+        raise PaperAlreadyExistsError(detail=f"Paper with {req.paper_id} already exist")
     paper = await retrieve_paper(req.source, req.paper_id)
     log.info(f"Adding paper '{paper.metadata.title}' to Neo4j graph")
     add_to_graph(paper)

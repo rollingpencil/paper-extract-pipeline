@@ -24,6 +24,7 @@ When asked a question:
 5. You can combine both tools: vector_search to find starting nodes, then query_neo4j for multi-hop traversals (up to 3 hops)
 6. Always use correct labels, relationship types, and property names from the schema
 7. Provide a clear natural language answer based on the results
+8. Before providing the answer, please provide the hops taken to get information. For example, if the hop is from the chunk with description "This is A" to the paper with the title "Paper 1" to the author "Author 1", represent it as ""This is A (Content)" -> "Paper 1 (Paper)" -> "Author 1 (Author)"" where the items in the bracket is the type of node.
 
 Always ensure your Cypher syntax is correct and optimized.
 """

@@ -344,3 +344,11 @@ def process_vector_search(
                     log.debug(f"  {key}: {value}")
 
         return records
+
+
+def check_paper_exists(paper_id: str) -> bool:
+    query = f'MATCH (p:Paper) WHERE p.id CONTAINS "{paper_id}" RETURN *'
+    driver = get_neo4j_driver()
+    with driver.session(database=DATABASE_NAME) as session:
+        result = session.run(query)
+        return result.single(strict=False) is not None

@@ -4,11 +4,13 @@ import networkx as nx
 from controllers.fetch_controller import (
     retrieve_paper,
 )
+from models.exceptions import PaperAlreadyExistsError
 from models.models import Paper
 from service.arxiv_svc import (
     fetch_document_id_by_topic,
 )
 from service.neo4j_svc import (
+    check_paper_exists,
     get_neo4j_driver,
     store_authors,
     store_content_chunks,
@@ -104,6 +106,10 @@ def _plot_nodes(data: dict):
 
 
 def add_to_graph(paper: Paper):
+    if check_paper_exists(paper.metadata.id):
+        raise PaperAlreadyExistsError(
+            detail=f"Paper with {paper.metadata.id} already exist"
+        )
     driver = get_neo4j_driver()
     with driver.session(database=get_envvar("NEO4J_DATABASE_NAME")) as session:
         meta = paper.metadata
@@ -115,6 +121,10 @@ def add_to_graph(paper: Paper):
         store_content_chunks(session, pdf_data, id)
         store_semantic_entities(session, pdf_data, id)
         store_paper_similarity_links(session, meta)
+
+
+def check_paper_exists_graph(paper_id: str) -> bool:
+    return check_paper_exists(paper_id)
 
 
 async def query_database(query_text: str) -> GraphQueryResult:
