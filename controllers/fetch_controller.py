@@ -2,7 +2,7 @@ from models.exceptions import SourceTypeError
 from models.models import Paper, PaperExtractedData, PaperMetadata
 from service.arxiv_svc import fetch_paper_metadata, fetch_pdf_content
 from service.chunk_svc import chunk_and_embed_text
-from service.openrouter_svc import (
+from service.extract_svc import (
     extract_paper_dataset,
     extract_paper_methods,
     extract_paper_models,
@@ -11,7 +11,7 @@ from service.openrouter_svc import (
 from utils.constants import SourceType
 
 
-async def retrievePaperMetadata(source: SourceType, paper_id: str) -> PaperMetadata:
+async def retrieve_paper_metadata(source: SourceType, paper_id: str) -> PaperMetadata:
     match source:
         case SourceType.ARXIV:
             return await fetch_paper_metadata(paper_id)
@@ -19,7 +19,7 @@ async def retrievePaperMetadata(source: SourceType, paper_id: str) -> PaperMetad
             raise SourceTypeError
 
 
-async def retrievePaperExtractedData(pdf_url: str) -> PaperExtractedData:
+async def retrieve_paper_extracted_data(pdf_url: str) -> PaperExtractedData:
     pdf_text = fetch_pdf_content(pdf_url)
     datasets = await extract_paper_dataset(pdf_text)
     models = await extract_paper_models(pdf_text)
@@ -36,15 +36,15 @@ async def retrievePaperExtractedData(pdf_url: str) -> PaperExtractedData:
     )
 
 
-async def retrievePaper(source: SourceType, paper_id: str) -> Paper:
+async def retrieve_paper(source: SourceType, paper_id: str) -> Paper:
     match source:
         case SourceType.ARXIV:
-            return await _retrievePaper_arxiv(paper_id)
+            return await _retrieve_paper_arxiv(paper_id)
         case _:
             raise SourceTypeError
 
 
-async def _retrievePaper_arxiv(paper_id: str) -> Paper:
+async def _retrieve_paper_arxiv(paper_id: str) -> Paper:
     metadata = await fetch_paper_metadata(paper_id)
-    pdf_data = await retrievePaperExtractedData(metadata.pdf_url)
+    pdf_data = await retrieve_paper_extracted_data(metadata.pdf_url)
     return Paper(metadata=metadata, pdf_data=pdf_data)

@@ -19,3 +19,7 @@ class BuildGraphModel(BaseModel):
 
 class GetEmbeddingModel(BaseModel):
     content: str = Field(..., example="Content to embed")
+
+
+class QueryModel(BaseModel):
+    qns: str = Field(..., example="What is the ...")
