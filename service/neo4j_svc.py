@@ -295,11 +295,14 @@ def get_graph_schema() -> str:
     return schema
 
 
-def process_query(cypher_query: str) -> list[dict[str, Any]]:
+def process_query(cypher_query: str, cache_func=None) -> list[dict[str, Any]]:
     driver = get_neo4j_driver()
     with driver.session(database=DATABASE_NAME) as session:
         result = session.run(cypher_query)
         records = [serialize_neo4j_types(dict(record)) for record in result]
+
+        if cache_func:
+            cache_func(cypher_query, records)
 
         log.debug(f"Query returned {len(records)} record(s)")
         if records:
@@ -309,7 +312,11 @@ def process_query(cypher_query: str) -> list[dict[str, Any]]:
 
 
 def process_vector_search(
-    index_name: str, top_k: int, query_embedding: EmbeddingVector
+    index_name: str,
+    top_k: int,
+    query_embedding: EmbeddingVector,
+    query_text: str,
+    cache_func=None,
 ) -> list[dict[str, Any]]:
     driver = get_neo4j_driver()
     # Perform vector search using Neo4j's vector index
@@ -330,6 +337,10 @@ def process_vector_search(
             }
             for record in result
         ]
+
+        if cache_func:
+            cache_query = f"{query_text}|{index_name}|{top_k}"
+            cache_func(cache_query, records)
 
         log.debug(f"Vector search returned {len(records)} result(s)")
         if records:
