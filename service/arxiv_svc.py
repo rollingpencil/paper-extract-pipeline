@@ -39,7 +39,6 @@ async def fetch_paper_metadata(paper_id: str) -> PaperMetadata:
         raise PaperFetchError("Paper PDF Link not found.")
 
     summary_embedding = await embed_content(summary)
-    print()
 
     paper_meta = PaperMetadata(
         id=paper_id,
