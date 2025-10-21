@@ -19,6 +19,7 @@ from models.route_model import (
     GetPaperModel,
     QueryModel,
 )
+from service.eval_svc import evaluate_query_relevance, evaluate_with_judge
 from utils.logger import log
 
 app = FastAPI()
@@ -80,3 +81,26 @@ async def import_paper_to_graph(req: GetPaperModel, res: Response):
 async def send_query_database(req: QueryModel, res: Response):
     log.info("Processing Query")
     return await query_database(req.qns)
+
+
+@app.post("/eval/relevance/")
+async def eval_simple(res: Response):
+    """Call evaluate_query_relevance with a dummy query and dummy embeddings."""
+    dummy_query = "test query about contrastive learning"
+    # small dummy embeddings (length mismatch with real model is acceptable for quick smoke test)
+    dummy_embeddings = [[0.1] * 8, [0.2] * 8]
+    result = await evaluate_query_relevance(dummy_query, dummy_embeddings)
+    return result
+
+
+@app.post("/eval/judge/")
+async def eval_judge(res: Response):
+    """Call evaluate_with_judge with dummy query/answer/evidence and return judge output."""
+    dummy_query = "What datasets are commonly used for contrastive learning in vision?"
+    dummy_answer = "Common datasets include ImageNet and CIFAR-10; many works also use COCO."
+    dummy_evidence = [
+        {"id": "paper1", "text": "We evaluated on ImageNet and CIFAR-10.", "embedding": [0.1] * 8},
+        {"id": "paper2", "text": "COCO was used for additional experiments.", "embedding": [0.2] * 8},
+    ]
+    result = await evaluate_with_judge(dummy_query, dummy_answer, dummy_evidence)
+    return result
