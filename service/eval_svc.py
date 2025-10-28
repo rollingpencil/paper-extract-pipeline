@@ -1,8 +1,9 @@
-from pydantic import BaseModel
-from service.embed_svc import embed_content
 from math import sqrt
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
+from pydantic import BaseModel
+
+from service.embed_svc import embed_content
 from service.judge_svc import evaluate_response
 
 
@@ -23,7 +24,9 @@ def _cosine(a: List[float], b: List[float]) -> float:
         return 0.0
 
 
-async def evaluate_query_relevance(query_text: str, answer_embeddings: list[list[float]]) -> EvaluationOutput:
+async def evaluate_query_relevance(
+    query_text: str, answer_embeddings: list[list[float]]
+) -> EvaluationOutput:
     """Embed query, compute cosine vs candidates, return best score as string."""
     q_emb = await embed_content(query_text)
     best = 0.0
@@ -34,11 +37,15 @@ async def evaluate_query_relevance(query_text: str, answer_embeddings: list[list
     return EvaluationOutput(relevance_score=f"{best:.6f}")
 
 
-
-
-async def evaluate_with_judge(query_text: str, system_answer: str, evidence: List[Dict[str, Any]]) -> EvaluationOutput:
+async def evaluate_with_judge(
+    query_text: str, system_answer: str, evidence: List[Dict[str, Any]]
+) -> EvaluationOutput:
     """Call judge_svc.evaluate_response and package result into EvaluationOutput."""
     judge_res = await evaluate_response(query_text, system_answer, evidence)
-    rel = judge_res.get("relevance", {}).get("score") if isinstance(judge_res, dict) else None
+    rel = (
+        judge_res.get("relevance", {}).get("score")
+        if isinstance(judge_res, dict)
+        else None
+    )
     rel_str = f"{rel:.6f}" if isinstance(rel, float) else str(rel or "0.0")
     return EvaluationOutput(relevance_score=rel_str, judge=judge_res)

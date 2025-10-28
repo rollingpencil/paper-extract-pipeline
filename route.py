@@ -11,15 +11,17 @@ from controllers.generate_controller import (
     generate_ontology_graph,
     query_database,
 )
+from controllers.judge_controller import evaluate_qns_ans_with_judge
 from models.exceptions import PaperAlreadyExistsError
 from models.models import Paper
 from models.route_model import (
     BuildGraphModel,
+    EvaluationQueryModel,
     ExtractModel,
     GetPaperModel,
     QueryModel,
 )
-from service.eval_svc import evaluate_query_relevance, evaluate_with_judge
+from service.eval_svc import evaluate_query_relevance
 from utils.logger import log
 
 app = FastAPI()
@@ -94,13 +96,6 @@ async def eval_simple(res: Response):
 
 
 @app.post("/eval/judge/")
-async def eval_judge(res: Response):
-    """Call evaluate_with_judge with dummy query/answer/evidence and return judge output."""
-    dummy_query = "What datasets are commonly used for contrastive learning in vision?"
-    dummy_answer = "Common datasets include ImageNet and CIFAR-10; many works also use COCO."
-    dummy_evidence = [
-        {"id": "paper1", "text": "We evaluated on ImageNet and CIFAR-10.", "embedding": [0.1] * 8},
-        {"id": "paper2", "text": "COCO was used for additional experiments.", "embedding": [0.2] * 8},
-    ]
-    result = await evaluate_with_judge(dummy_query, dummy_answer, dummy_evidence)
+async def eval_judge(req: EvaluationQueryModel, res: Response):
+    result = await evaluate_qns_ans_with_judge(req.query, req.expected_answer)
     return result
