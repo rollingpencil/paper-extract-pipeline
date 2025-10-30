@@ -72,7 +72,8 @@ async def add_paper_to_graph(paper: Paper, res: Response):
 async def import_paper_to_graph(req: GetPaperModel, res: Response):
     log.info("Processing Extract Paper Metadata and Data Request")
     if check_paper_exists_graph(req.paper_id):
-        raise PaperAlreadyExistsError(detail=f"Paper with {req.paper_id} already exist")
+        raise PaperAlreadyExistsError(
+            detail=f"Paper with {req.paper_id} already exist")
     paper = await retrieve_paper(req.source, req.paper_id)
     log.info(f"Adding paper '{paper.metadata.title}' to Neo4j graph")
     add_to_graph(paper)
@@ -97,5 +98,5 @@ async def eval_simple(res: Response):
 
 @app.post("/eval/judge/")
 async def eval_judge(req: EvaluationQueryModel, res: Response):
-    result = await evaluate_qns_ans_with_judge(req.query, req.expected_answer)
+    result = await evaluate_qns_ans_with_judge(req.query, req.expected_answer, req.ablation_config)
     return result

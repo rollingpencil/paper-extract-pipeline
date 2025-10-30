@@ -2,6 +2,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, Field
 
+from models.models import AblationConfig
 from utils.constants import SourceType
 
 
@@ -35,3 +36,4 @@ class EvidenceModel(BaseModel):
 class EvaluationQueryModel(BaseModel):
     query: Annotated[str, Field(min_length=1)]
     expected_answer: Annotated[str, Field(min_length=1)]
+    ablation_config: Annotated[AblationConfig, Field()]

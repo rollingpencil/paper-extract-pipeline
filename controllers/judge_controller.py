@@ -1,13 +1,17 @@
-from models.models import QAResultModel, QueryAnswerPair
+from models.models import AblationConfig, QAResultModel, QueryAnswerPair
 from service.judge_svc import evaluate_response
 from service.query_svc import query
 from utils.logger import log
 
 
 async def evaluate_qns_ans_with_judge(
-    query_text: str, expected_ans: str
+    query_text: str,
+    expected_ans: str,
+    ablation_config: dict = None
 ) -> QAResultModel:
-    graph_response = await query(query_text)
+
+    config = AblationConfig(**ablation_config) if ablation_config else None
+    graph_response = await query(query_text, ablation_config=config)
 
     qapair = QueryAnswerPair(
         query=query_text,
