@@ -1,13 +1,15 @@
 import hashlib
 import json
+import re
 import time
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, RunContext, UsageLimits
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
+from models.models import AblationConfig
 from service.embed_svc import embed_content
 from service.neo4j_svc import get_graph_schema, process_query, process_vector_search
 from utils.logger import log
@@ -16,39 +18,104 @@ from utils.utils import get_envvar
 CACHE_ENABLE: bool = bool(get_envvar("QUERY_CACHE_ENABLE"))
 CACHE_TTL: int = int(get_envvar("QUERY_CACHE_TTL"))
 
-NEO4J_QUERY_SYSTEM_PROMPT = f"""
-You are a Neo4j graph database expert with access to both Cypher queries and vector similarity search.
 
-CRITICAL: After each tool call, check if you have enough information to answer the question. If yes, IMMEDIATELY return the answer without making additional tool calls.
+def _get_base_prompt_rules() -> str:
+    """Common rules for all prompt variations."""
+    return """
+CRITICAL STOPPING RULES - YOU MUST FOLLOW THESE:
+1. Maximum 5 tool calls total per question - after that you MUST return your answer with whatever information you have
+2. After EVERY tool call, ask yourself: "Do I have enough information to answer the question?" If YES, STOP and return the answer immediately
+3. If a tool returns empty results, STOP trying variations - return an answer stating no information was found
+4. If a tool returns ANY relevant data, use it to formulate an answer - do NOT keep searching for "better" results
+5. NEVER call the same tool with the same or similar parameters more than once
+
+OUTPUT FORMAT REQUIREMENTS:
+- 'reasoning': Show your reasoning process. If using graph traversal, show path as "Node1 (Type)" -> "Node2 (Type)"
+- 'answer': Natural language answer to the question
+- If no information found, clearly state that in the answer
+
+WHAT NOT TO DO (violations will waste resources):
+- ❌ Making more than 5 tool calls
+- ❌ Retrying queries with slightly different parameters
+- ❌ Calling tools "just to be thorough" when you already have an answer
+- ❌ Making separate queries for each piece of information instead of one comprehensive query
+- ❌ Continuing to search after finding relevant information
+"""
+
+NEO4J_QUERY_SYSTEM_PROMPT_FULL = f"""
+You are a Neo4j graph database expert with access to both Cypher queries and vector similarity search.
 
 {get_graph_schema()}
 
-When asked a question:
-1. Analyze what information is needed to answer the question
-2. If the question requires finding nodes based on semantic meaning (e.g., "papers about X", "datasets used for Y"), use vector_search FIRST to find relevant nodes
-3. Once you have specific node IDs from vector search, use query_neo4j to traverse relationships and gather additional information
-4. For direct graph traversals with known entities, use query_neo4j directly
-5. You can combine both tools: vector_search to find starting nodes, then query_neo4j for multi-hop traversals (up to 3 hops)
-6. Always use correct labels, relationship types, and property names from the schema
-7. ALWAYS show the complete reasoning process with traversal path in your response
+{_get_base_prompt_rules()}
 
-FORMAT REQUIREMENTS for your response:
-- In the 'reasoning' field: Show the complete traversal path using arrows. For each hop, include the node's key identifying information and its type in parentheses.
-  Example: "Multi-Hop Reasoning Dataset (Dataset)" -> "Knowledge Graph Question Answering (Paper)" -> "John Smith (Author)"
-- If vector search was used, mention it in reasoning: "Found via vector search: [node info], then traversed to..."
-- In the 'answer' field: Provide the final natural language answer to the question
+QUERY STRATEGY (follow in order):
+Step 1: Determine what type of query you need:
+   - Semantic search needed (e.g., "papers about X", "datasets for Y")? → Use vector_search ONCE
+   - Known entity with direct relationships? → Use query_neo4j ONCE with a comprehensive query
 
-IMPORTANT - Query Efficiency Rules:
-- ONLY make tool calls if you need MORE information to answer the question
-- ONCE you have sufficient data to answer the user's question, STOP and provide the answer immediately
-- DO NOT make redundant queries that retrieve the same information
-- DO NOT query for additional details unless specifically requested
-- If a query returns empty results, do NOT retry with the same or similar query
-- Prefer ONE comprehensive query over multiple smaller queries when possible
+Step 2: If you used vector_search and need more details:
+   - Write ONE comprehensive query_neo4j that gets ALL needed information
+   - Use OPTIONAL MATCH for relationships that might not exist
 
-8. Before providing the answer, please provide the hops taken to get information. For example, if the hop is from the chunk with description "This is A" to the paper with the title "Paper 1" to the author "Author 1", represent it as ""This is A (Content)" -> "Paper 1 (Paper)" -> "Author 1 (Author)"" where the items in the bracket is the type of node.
+Step 3: STOP and return your answer with the format above.
 
-Always ensure your Cypher syntax is correct and optimized. Provide a clear natural language answer based on the results.
+Remember: 1-3 tool calls is ideal. Stop as soon as you can answer the question.
+"""
+
+NEO4J_QUERY_SYSTEM_PROMPT_VECTOR_ONLY = f"""
+You are a semantic search expert with access to vector similarity search over a Neo4j graph database.
+
+{get_graph_schema()}
+
+{_get_base_prompt_rules()}
+
+QUERY STRATEGY:
+Step 1: Use vector_search ONCE with a well-crafted semantic query
+   - Choose the appropriate index based on what you're looking for
+   - Set top_k appropriately (typically 3-10)
+
+Step 2: STOP and return your answer based on the vector search results
+   - Summarize the information found in the 'answer' field
+   - Explain what you found in the 'reasoning' field
+
+Remember: You only have vector search, so get the most relevant results in ONE call and answer immediately.
+"""
+
+NEO4J_QUERY_SYSTEM_PROMPT_CYPHER_ONLY = f"""
+You are a Neo4j Cypher query expert with access to a graph database.
+
+{get_graph_schema()}
+
+{_get_base_prompt_rules()}
+
+QUERY STRATEGY:
+Step 1: Write ONE comprehensive Cypher query that gets all the information you need
+   - Use OPTIONAL MATCH for relationships that might not exist
+   - Use WHERE clauses to filter appropriately
+   - Return all necessary data in a single query
+
+Step 2: STOP and return your answer based on the query results
+   - Show the traversal path in 'reasoning' if applicable
+   - Provide natural language answer in 'answer' field
+
+Remember: You can't do semantic search, so craft your Cypher queries carefully. One good query is better than many small ones.
+"""
+
+NEO4J_QUERY_SYSTEM_PROMPT_NO_TOOLS = f"""
+You are a helpful assistant that answers questions about academic papers and research.
+
+{_get_base_prompt_rules()}
+
+IMPORTANT: You do NOT have access to any database or tools for this query.
+
+QUERY STRATEGY:
+- Answer based solely on general knowledge
+- Be honest if you don't have specific information
+- State clearly in your reasoning that no database access was available
+- Provide the best general answer you can in the 'answer' field
+
+Remember: No tools available - provide your answer immediately based on general knowledge.
 """
 
 
@@ -71,32 +138,72 @@ llm_model = OpenAIChatModel(
     ),
 )
 
-query_agent = Agent(
-    llm_model,
-    system_prompt=NEO4J_QUERY_SYSTEM_PROMPT,
-    output_type=GraphQueryResult,
-    retries=int(get_envvar("QUERY_RETRIES")),
-)
+def _create_query_agent(config: AblationConfig) -> Agent:
+    """Create an agent with tools based on ablation configuration."""
+    # Select the appropriate system prompt based on configuration
+    if not config.enable_graphrag:
+        system_prompt = NEO4J_QUERY_SYSTEM_PROMPT_NO_TOOLS
+    elif not config.enable_vector_search and not config.enable_cypher_queries:
+        system_prompt = NEO4J_QUERY_SYSTEM_PROMPT_NO_TOOLS
+    elif not config.enable_vector_search:
+        system_prompt = NEO4J_QUERY_SYSTEM_PROMPT_CYPHER_ONLY
+    elif not config.enable_cypher_queries:
+        system_prompt = NEO4J_QUERY_SYSTEM_PROMPT_VECTOR_ONLY
+    else:
+        system_prompt = NEO4J_QUERY_SYSTEM_PROMPT_FULL
+
+    # Create agent
+    agent = Agent(
+        llm_model,
+        system_prompt=system_prompt,
+        output_type=GraphQueryResult,
+        retries=int(get_envvar("QUERY_RETRIES")),
+    )
+
+    # Only register tools that are enabled
+    if config.enable_graphrag:
+        if config.enable_cypher_queries:
+            agent.tool(query_neo4j)
+        if config.enable_vector_search:
+            agent.tool(vector_search)
+
+    return agent
 
 
-async def query(question: str) -> GraphQueryResult:
+async def query(question: str, ablation_config: Optional[AblationConfig] = None) -> GraphQueryResult:
     """
     Query Neo4j using natural language (async).
 
     Args:
         question: Natural language question
+        ablation_config: Optional configuration for ablation studies to control GraphRAG behavior
 
     Returns:
         GraphQueryResult with answer and data
     """
+    # Store ablation config in a global for tools to access
+    global _current_ablation_config
+    _current_ablation_config = ablation_config or AblationConfig()
 
-    result = await query_agent.run(
-        question, model_settings=json.loads(get_envvar("QUERY_MODEL_SETTINGS"))
+    # Log ablation configuration
+    if ablation_config:
+        log.info(f"Ablation Config: {ablation_config.model_dump()}")
+
+    # Create agent with appropriate tools based on config
+    agent = _create_query_agent(_current_ablation_config)
+
+    result = await agent.run(
+        question,
+        model_settings=json.loads(get_envvar("QUERY_MODEL_SETTINGS")),
+        usage_limits=UsageLimits(request_limit=100)  # Increase limit from default 50 to 100
     )
     return result.output
 
 
-@query_agent.tool
+# Global to store current ablation config
+_current_ablation_config: AblationConfig = AblationConfig()
+
+
 def query_neo4j(ctx: RunContext[None], cypher_query: str) -> list[dict[str, Any]]:
     """
     Execute a Cypher query against the Neo4j database.
@@ -107,6 +214,11 @@ def query_neo4j(ctx: RunContext[None], cypher_query: str) -> list[dict[str, Any]
     Returns:
         List of records as dictionaries
     """
+    # Filter query based on excluded node types and relationships
+    modified_query = _apply_ablation_filters(cypher_query)
+    if modified_query != cypher_query:
+        log.info(
+            f"Query modified by ablation config:\nOriginal: {cypher_query}\nModified: {modified_query}")
 
     # Clean expired cache entries periodically
     _clean_expired_cache()
@@ -114,14 +226,14 @@ def query_neo4j(ctx: RunContext[None], cypher_query: str) -> list[dict[str, Any]
     # Check cache first
     cache_func = None
     if CACHE_ENABLE:
-        cache_key = _get_cache_key(cypher_query)
+        cache_key = _get_cache_key(modified_query)
         if cache_key in _query_cache:
             cached_result, timestamp = _query_cache[cache_key]
             if _is_cache_valid(timestamp):
                 log.debug(f"\n{'=' * 60}")
                 log.debug("CACHE HIT - Using cached result")
                 log.debug(f"{'=' * 60}")
-                log.debug(f"Query: {cypher_query}")
+                log.debug(f"Query: {modified_query}")
                 log.debug(f"{'=' * 60}\n")
                 return cached_result
         cache_func = _query_cache_func
@@ -129,10 +241,10 @@ def query_neo4j(ctx: RunContext[None], cypher_query: str) -> list[dict[str, Any]
     log.debug(f"{'=' * 60}")
     log.debug("GENERATED CYPHER QUERY:")
     log.debug(f"{'=' * 60}")
-    log.debug(cypher_query)
+    log.debug(modified_query)
     log.debug(f"{'=' * 60}\n")
 
-    return process_query(cypher_query, cache_func=cache_func)
+    return process_query(modified_query, cache_func=cache_func)
 
 
 def _query_cache_func(cypher_query, records):
@@ -143,7 +255,6 @@ def _query_cache_func(cypher_query, records):
     _query_cache[cache_key] = (records, time.time())
 
 
-@query_agent.tool
 async def vector_search(
     ctx: RunContext[None], query_text: str, index_name: str, top_k: int = 5
 ) -> list[dict[str, Any]]:
@@ -158,6 +269,10 @@ async def vector_search(
     Returns:
         List of matching nodes with their properties and similarity scores
     """
+    # Apply max_vector_results override if specified
+    if _current_ablation_config.max_vector_results is not None:
+        top_k = min(top_k, _current_ablation_config.max_vector_results)
+        log.info(f"Vector search top_k limited to {top_k} by ablation config")
 
     # Clean expired cache entries periodically
     _clean_expired_cache()
@@ -177,7 +292,8 @@ async def vector_search(
                 log.debug(f"Index: {index_name}")
                 log.debug(f"Top K: {top_k}")
                 log.debug(f"{'=' * 60}\n")
-                return cached_result
+                # Apply node type filtering to cached results
+                return _filter_results_by_node_type(cached_result)
         cache_func = _vector_search_cache_func
 
     log.debug(f"{'=' * 60}")
@@ -193,9 +309,12 @@ async def vector_search(
     log.debug(f"Generated embedding (dim: {len(query_embedding)})")
 
     # Execute the vector search query
-    return process_vector_search(
+    results = process_vector_search(
         index_name, top_k, query_embedding, query_text, cache_func=cache_func
     )
+
+    # Apply node type filtering
+    return _filter_results_by_node_type(results)
 
 
 def _vector_search_cache_func(cache_query, records):
@@ -244,3 +363,89 @@ def clear_cache():
     _query_cache.clear()
     _vector_cache.clear()
     log.debug("Cache cleared")
+
+
+def _apply_ablation_filters(cypher_query: str) -> str:
+    """
+    Apply ablation config filters to a Cypher query.
+
+    This function modifies the query to exclude certain node types and relationships
+    based on the current ablation configuration.
+
+    Args:
+        cypher_query: Original Cypher query
+
+    Returns:
+        Modified Cypher query with ablation filters applied
+    """
+    modified_query = cypher_query
+
+    # Add WHERE clauses to exclude certain node types
+    if _current_ablation_config.excluded_node_types:
+        for node_type in _current_ablation_config.excluded_node_types:
+            # Simple approach: add a global WHERE clause
+            if "WHERE" in modified_query:
+                # Find all variable names used in MATCH clauses
+                variables = re.findall(r'MATCH\s+\((\w+)', modified_query)
+                for var in set(variables):
+                    where_clause = f" AND NOT {var}:{node_type}"
+                    if where_clause not in modified_query:
+                        modified_query = modified_query.replace(
+                            " RETURN", f"{where_clause} RETURN", 1)
+            else:
+                # Add new WHERE clause before RETURN
+                variables = re.findall(r'MATCH\s+\((\w+)', modified_query)
+                if variables:
+                    where_conditions = [
+                        f"NOT {var}:{node_type}" for var in set(variables)]
+                    where_clause = f" WHERE {' AND '.join(where_conditions)}"
+                    modified_query = modified_query.replace(
+                        " RETURN", f"{where_clause} RETURN", 1)
+
+    # Filter out excluded relationships
+    if _current_ablation_config.excluded_relationships:
+        for rel_type in _current_ablation_config.excluded_relationships:
+            pattern = f'\\[\\w*:{rel_type}\\]'
+            if re.search(pattern, modified_query):
+                log.warning(
+                    f"Query contains excluded relationship type {rel_type}, returning empty result")
+                # Rather than trying to remove it, just flag it
+                # You might want to return an empty result or modify the query differently
+
+    return modified_query
+
+
+def _filter_results_by_node_type(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """
+    Filter vector search results based on excluded node types.
+
+    Args:
+        results: List of nodes from vector search
+
+    Returns:
+        Filtered list with excluded node types removed
+    """
+    if not _current_ablation_config.excluded_node_types:
+        return results
+
+    filtered = []
+    for result in results:
+        # Check if the node has labels
+        node = result.get('node', {})
+        labels = node.get('labels', [])
+
+        # If node is actually in the result dict itself (different structure)
+        if not labels and 'labels' in result:
+            labels = result['labels']
+
+        # Check if any of the node's labels are in the excluded list
+        is_excluded = any(
+            label in _current_ablation_config.excluded_node_types for label in labels)
+
+        if not is_excluded:
+            filtered.append(result)
+        else:
+            log.debug(
+                f"Filtered out node with labels {labels} due to ablation config")
+
+    return filtered

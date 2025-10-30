@@ -11,14 +11,17 @@ from controllers.generate_controller import (
     generate_ontology_graph,
     query_database,
 )
+from controllers.judge_controller import evaluate_qns_ans_with_judge
 from models.exceptions import PaperAlreadyExistsError
 from models.models import Paper
 from models.route_model import (
     BuildGraphModel,
+    EvaluationQueryModel,
     ExtractModel,
     GetPaperModel,
     QueryModel,
 )
+from service.eval_svc import evaluate_query_relevance
 from utils.logger import log
 
 app = FastAPI()
@@ -69,7 +72,8 @@ async def add_paper_to_graph(paper: Paper, res: Response):
 async def import_paper_to_graph(req: GetPaperModel, res: Response):
     log.info("Processing Extract Paper Metadata and Data Request")
     if check_paper_exists_graph(req.paper_id):
-        raise PaperAlreadyExistsError(detail=f"Paper with {req.paper_id} already exist")
+        raise PaperAlreadyExistsError(
+            detail=f"Paper with {req.paper_id} already exist")
     paper = await retrieve_paper(req.source, req.paper_id)
     log.info(f"Adding paper '{paper.metadata.title}' to Neo4j graph")
     add_to_graph(paper)
@@ -80,3 +84,19 @@ async def import_paper_to_graph(req: GetPaperModel, res: Response):
 async def send_query_database(req: QueryModel, res: Response):
     log.info("Processing Query")
     return await query_database(req.qns)
+
+
+@app.post("/eval/relevance/")
+async def eval_simple(res: Response):
+    """Call evaluate_query_relevance with a dummy query and dummy embeddings."""
+    dummy_query = "test query about contrastive learning"
+    # small dummy embeddings (length mismatch with real model is acceptable for quick smoke test)
+    dummy_embeddings = [[0.1] * 8, [0.2] * 8]
+    result = await evaluate_query_relevance(dummy_query, dummy_embeddings)
+    return result
+
+
+@app.post("/eval/judge/")
+async def eval_judge(req: EvaluationQueryModel, res: Response):
+    result = await evaluate_qns_ans_with_judge(req.query, req.expected_answer, req.ablation_config)
+    return result

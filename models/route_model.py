@@ -1,5 +1,8 @@
+from typing import Annotated
+
 from pydantic import BaseModel, Field
 
+from models.models import AblationConfig
 from utils.constants import SourceType
 
 
@@ -23,3 +26,14 @@ class GetEmbeddingModel(BaseModel):
 
 class QueryModel(BaseModel):
     qns: str = Field(..., example="What is the ...")
+
+
+class EvidenceModel(BaseModel):
+    id: Annotated[str, Field(min_length=1)]
+    txt: Annotated[str, Field(min_length=1)]
+
+
+class EvaluationQueryModel(BaseModel):
+    query: Annotated[str, Field(min_length=1)]
+    expected_answer: Annotated[str, Field(min_length=1)]
+    ablation_config: Annotated[AblationConfig, Field()]
